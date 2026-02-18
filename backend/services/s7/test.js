@@ -1,8 +1,6 @@
 const S7Service = require('./s7Service');
 const s7 = new S7Service();
 
-console.log(process.env)
-
 async function main() {
   try {
     await s7.connect(

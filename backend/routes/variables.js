@@ -8,7 +8,7 @@ router.get("/", async (req, res) => {
     const dbRes = await pool.query("SELECT * FROM config;");
     res.json(dbRes.rows);
   } catch (e) {
-    res.status(404).json({
+    res.status(500).json({
       message: "Error fetching variables",
     });
   }
@@ -94,9 +94,10 @@ router.post("/apply", async (req, res) => {
     return res.status(400);
   }
 
-  const client = await pool.connect(); // Dovrebbe stare in un try catch probabilmente
+  let client;
 
   try {
+    client = await pool.connect();
     await client.query("BEGIN");
     await client.query("TRUNCATE config RESTART IDENTITY CASCADE");
 
@@ -130,12 +131,16 @@ router.post("/apply", async (req, res) => {
     await client.query("COMMIT");
     res.status(201).json({ message: "Configuration applied successfully" });
   } catch (e) {
-    await client.query("ROLLBACK");
+    if (client) {
+      await client.query("ROLLBACK");
+    }
     res.status(500).json({
       message: "Error applying configuration, fallback",
     });
   } finally {
-    client.release();
+    if(client) {
+      client.release();
+    }
   }
 });
 

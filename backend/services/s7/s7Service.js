@@ -52,6 +52,9 @@ class S7Service {
     try {
       await connectPromise(this.conn, ip, port, rack, slot);
       this.connected = true;
+      // Rimuovi vecchi items SEMPRE (fix duplicati)
+      this.conn.removeItems();
+
       this.conn.addItems(addresses);
     } catch (e) {
       this.connected = false;
@@ -64,7 +67,6 @@ class S7Service {
       await this.disconnect();
       await this.connect(ip, port, rack, slot, addresses);
     } catch (e) {
-      this.connected = false;
       throw new Error(`Error while reconnecting: ${e.message}`);
     }
   }
