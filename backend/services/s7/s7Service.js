@@ -29,6 +29,19 @@ function dropPromise(conn) {
   });
 }
 
+function readPromise(conn) {
+  return new Promise((resolve, reject) => {
+    conn.readAllItems((err, values) => {  
+      if (err) {
+        reject(new Error(`Read failed: ${err}`));
+      } else {
+        resolve(values);
+      }
+    });
+  });
+}
+
+
 class S7Service {
   constructor() {
     this.conn = new nodes7();
@@ -51,6 +64,7 @@ class S7Service {
       await this.disconnect();
       await this.connect(ip, port, rack, slot, addresses);
     } catch (e) {
+      this.connected = false;
       throw new Error(`Error while reconnecting: ${e.message}`);
     }
   }
@@ -59,6 +73,7 @@ class S7Service {
     if (this.conn && this.connected) {
       try {
         await dropPromise(this.conn);
+        this.connected = false;
       } catch (e) {
         throw new Error(`Error while disconnecting: ${e.message}`);
       }
@@ -67,7 +82,7 @@ class S7Service {
 
   async readVariables(variables) {
     try {
-      const res = await this.conn.readVariables();
+      const res = await readPromise(this.conn);
       return res;
     } catch (e) {
       throw new Error(`Error reading variables: ${e.message}`);
