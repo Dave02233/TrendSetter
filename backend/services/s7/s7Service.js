@@ -31,7 +31,7 @@ function dropPromise(conn) {
 
 function readPromise(conn) {
   return new Promise((resolve, reject) => {
-    conn.readAllItems((err, values) => {  
+    conn.readAllItems((err, values) => {
       if (err) {
         reject(new Error(`Read failed: ${err}`));
       } else {
@@ -54,7 +54,7 @@ class S7Service {
       this.connected = true;
       // Rimuovi vecchi items SEMPRE (fix duplicati)
       this.conn.removeItems();
-
+      console.log(addresses);
       this.conn.addItems(addresses);
     } catch (e) {
       this.connected = false;
@@ -82,7 +82,7 @@ class S7Service {
     }
   }
 
-  async readVariables(variables) {
+  async readVariables() {
     try {
       const res = await readPromise(this.conn);
       return res;

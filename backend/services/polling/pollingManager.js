@@ -16,7 +16,7 @@ class pollingManager {
             this._intervalIds = []
     }
 
-    async start(variables, subscriber) {
+    async start(variables, callback) {
         /*
         {
             'Var1': {
@@ -49,13 +49,12 @@ class pollingManager {
             this._intervalIds = [];
 
             this._samplingTimes.forEach((samplingTime, i) => {
-                const id = setInterval(async _ => {
+                const id = setInterval(async () => {
                     try {
                         res = await this.service.readVariables();
-                        // <---------------------------------------- Scrittura su DB
-                        await fetch()
+                        callback(null, res);
                     } catch (e) {
-                        throw new Error(e.message);
+                        callback(e, null);
                     }
                 }, samplingTime)
 
@@ -78,7 +77,7 @@ class pollingManager {
 
             await this.service.disconnect();
             this.isRunning = false;
-            
+
         } catch (e) {
             throw new Error(e.message);
         }

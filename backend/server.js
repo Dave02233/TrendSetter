@@ -6,6 +6,7 @@ const PORT = process.env.PORT || 3001;
 
 // Routes
 const variableRoutes = require('./routes/variables')
+const pollingRoutes = require('./routes/polling')
 
 const cors = require('cors')
 
@@ -17,6 +18,7 @@ app.use(cors());
 app.use(express.json());
 
 app.use('/api/variables', variableRoutes)
+app.use('/api/polling', pollingRoutes)
 
 // Test route
 app.get('/health', async (req, res) => {

@@ -4,15 +4,15 @@ const s7 = new S7Service();
 async function main() {
   try {
     await s7.connect(
-      '192.168.54.150',
+      '192.168.33.170',
       102,
       0,
       1,
-      ['DB40,REAL12', 'DB40,X3.4']
+      ['DB1,REAL0', 'DB1,X6.0']
     );
-    console.log('Addresses:', ['DB205,DBX0.0', 'DB40,DBX3.4']);
+    console.log('Addresses:', ['DB1,REAL0', 'DB1,X6.0']);
     const data = await s7.readVariables();
-    console.log('Data:', data);  
+    console.log('Data:', data);
 
     await s7.disconnect();
   } catch (e) {

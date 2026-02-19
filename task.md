@@ -243,15 +243,15 @@ volumes:
 
 ## Workflow Utente (Target)
 
-1. **Config PLC**: GET/PUT su `/api/plc` per impostare IP/rack/slot/port PLC
-2. **Gestione Variabili**:
-   - GET `/api/variables` — Lista variabili
-   - POST `/api/variables` — Aggiungi singola variabile
-   - PUT `/api/variables/:id` — Modifica variabile (**DA IMPLEMENTARE**)
-   - DELETE `/api/variables/:id` — Rimuovi variabile + CASCADE dati
-3. **Apply Config**: POST `/api/variables/apply` → TRUNCATE + INSERT bulk + restart polling
-4. **Avvia Polling**: POST `/api/polling/start` → connessione PLC + loop lettura + INSERT su DB
-5. **Visualizza Dati**: GET `/api/data` per storico, WebSocket per realtime
+1.  **Config PLC**: GET/PUT su `/api/plc` per impostare IP/rack/slot/port PLC
+2.  **Gestione Variabili**:
+    - GET `/api/variables` — Lista variabili
+    - POST `/api/variables` — Aggiungi singola variabile
+    - PUT `/api/variables/:id` — Modifica variabile (**DA IMPLEMENTARE**)
+    - DELETE `/api/variables/:id` — Rimuovi variabile + CASCADE dati
+3.  **Apply Config**: POST `/api/variables/apply` → TRUNCATE + INSERT bulk + restart polling
+4.  **Avvia Polling**: POST `/api/polling/start` → connessione PLC + loop lettura + INSERT su DB
+5.  **Visualizza Dati**: GET `/api/data` per storico, WebSocket per realtime
 
 ---
 
@@ -263,69 +263,50 @@ volumes:
 - [x] pg Pool singleton (`db/index.js`)
 - [x] API Variables: GET, POST, DELETE, POST /apply (con validazione)
 - [x] S7Service: classe con connect/reconnect/disconnect/read (Promise-based)
-- [x] PollingManager: struttura base con multi-interval e stop
+- [x] PollingManager: gestione loop di campionamento e callback
+- [x] API Polling: Start/Stop con gestione istanza singleton
 
 ### ⚡ Prossimi 3 Punti da Sviluppare
 
 ---
 
-#### 1. 🔧 Completare il PollingManager — INSERT su DB (PRIORITÀ ALTA)
+#### 1. 🌐 Implementare WebSocket per streaming realtime (PRIORITÀ ALTA)
 
-**Problema**: Il loop di polling legge i dati dal PLC ma non li salva su database.  
-La riga `await fetch()` in `pollingManager.js` è un placeholder non funzionante.
+**Problema**: Il frontend ha bisogno di aggiornamenti realtime. Attualmente i dati vanno solo su DB.
 
 **Cosa fare**:
-- Rimuovere `await fetch()` e sostituire con INSERT parametrizzato su tabella `data`
-- Il `pollingManager` ha già accesso a `pool` (già importato)
-- Mappare i valori letti da S7 (che arrivano come `{ 'DB10,REAL0': 23.5, ... }`) con i `sensor_id` corrispondenti dalla tabella `config`
-- Filtrare per samplingTime: ogni intervallo deve scrivere SOLO le variabili con quel sampling_interval, non tutte
-- Gestire la conversione Bool → 0/1 per la colonna `value NUMERIC`
-- Aggiungere la route `/api/polling` in `server.js`
-- Correggere i bug in `routes/polling.js` (await mancanti, referenza errata a pollingManager)
-- Il manager va istanziato come **singleton** a livello di `server.js`, non ricreato ad ogni richiesta
+- Creare `services/websocket/wsManager.js`:
+  - Avvia un `WebSocketServer` (usando il modulo `ws` già installato).
+  - Gestisce una lista di client connessi.
+  - Metodo `broadcast(data)` per inviare i dati a tutti.
+- Integrare nel `callback` di `polling.js`:
+  - Oltre a scrivere su DB, inviare l'oggetto `res` al `wsManager.broadcast`.
+- Avviare il server WS in `server.js` (può condividere la porta o usarne una dedicata `WS_PORT`).
 
-**Risultato atteso**: Dopo `POST /api/polling/start`, i dati del PLC vengono scritti in `data` ogni N ms.
+**Risultato atteso**: Ogni lettura dal PLC viene immediatamente "pushata" via WebSocket.
 
 ---
 
-#### 2. 📡 Implementare API PLC + API Data (GET storico)
+#### 2. 📡 Implementare API PLC + API Data (Storico & Aggregati)
 
-**Problema**: La route `/api/plc` non esiste in `routes/` e non è montata. L'API `/api/data` non è mai stata creata.
+**Problema**: Non c'è ancora un modo per leggere lo storico dati o cambiare IP del PLC via API.
 
-**Cosa fare per `/api/plc`**:
-- Creare `routes/plc.js` con:
-  - `GET /api/plc` → legge da `plc_config WHERE id = 1`
-  - `PUT /api/plc` → aggiorna `ip, rack, slot, port` in `plc_config`
-- Aggiungere colonna `port INTEGER NOT NULL DEFAULT 102` a `plc_config` in `init.sql`
-- Montare la route in `server.js`
-- Quando viene eseguita `PUT /api/plc` e il polling è attivo → triggera `pollingManager.reconnect(...)`
-
-**Cosa fare per `/api/data`**:
-- Creare `routes/data.js` con:
-  - `GET /api/data?sensor_id=1&from=2024-01-01T00:00:00Z&to=2024-01-01T01:00:00Z`
-  - Supporto query multi-variabile: `sensor_id` può essere array o lista CSV
-  - Opzionale: parametro `interval` per time_bucket aggregation (`1m`, `5m`, `1h`)
-- Montare la route in `server.js`
-
-**Risultato atteso**: Frontend può interrogare lo storico e la pagina di config PLC può leggere/scrivere i parametri di connessione.
+**Cosa fare**:
+- `GET /api/data`: Query su TimescaleDB con filtri `sensor_id`, `from`, `to`.
+- `GET/PUT /api/plc`: Per gestire la configurazione in `plc_config`.
+- (Opzionale ma consigliato) Supporto per `time_bucket` di TimescaleDB per aggregare i dati (es. media ogni minuto) per i grafici a lungo termine.
 
 ---
 
-#### 3. 🌐 Implementare WebSocket per streaming realtime
+#### 3. �️ Frontend: Dashboard Realtime & Configurazione
 
-**Problema**: `ws` è già installato ma non usato. Il frontend ha bisogno di aggiornamenti realtime senza polling HTTP.
+**Problema**: L'applicazione non ha ancora un'interfaccia utente.
 
 **Cosa fare**:
-- Creare `services/websocket/wsService.js`:
-  - Avvia un `WebSocket.Server` sulla porta `WS_PORT` (default 3002)
-  - Mantiene la lista dei client connessi
-  - Espone metodo `broadcast(data)` per inviare a tutti i client
-- Integrare il `wsService` nel `pollingManager`: ad ogni lettura dal PLC, dopo l'INSERT su DB, chiama `wsService.broadcast({ timestamp, readings: [...] })`
-- Formato messaggio: `{ type: 'data', timestamp: ISO, readings: [{ sensor_id, name, value }] }`
-- Aggiungere route HTTP `GET /api/ws/status` per verificare quanti client sono connessi
-- Avviare il WebSocket server all'avvio di `server.js`
-
-**Risultato atteso**: Il frontend può aprire una connessione WS e ricevere dati in push ogni volta che il poller legge dal PLC, senza dover fare polling HTTP.
+- Inizializzare progetto React (Vite).
+- Creare la pagina "Configurazione" per gestire le variabili (CRUD).
+- Creare la "Dashboard" con card realtime (via WebSocket) e grafici storici (via API `/api/data`).
+- Implementare il tasto "Applica" che invia `/api/variables/apply`.
 
 ---
 
